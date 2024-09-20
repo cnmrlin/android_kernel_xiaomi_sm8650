@@ -9973,6 +9973,8 @@ static int battery_chg_parse_dt(struct battery_chg_dev *bcdev)
 {
 	struct device_node *node = bcdev->dev->of_node;
 	struct psy_state *pst = &bcdev->psy_list[PSY_TYPE_BATTERY];
+	int i, rc, len;
+	u32 prev, val;
 
 	bcdev->wls_not_supported = of_property_read_bool(node,
 			"qcom,wireless-charging-not-supported");
