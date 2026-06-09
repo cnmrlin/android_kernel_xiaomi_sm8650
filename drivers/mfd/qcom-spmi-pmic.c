@@ -14,6 +14,7 @@
 #include <linux/types.h>
 #include <linux/regmap.h>
 #include <linux/of_platform.h>
+#include <linux/delay.h>
 #include <linux/qti-regmap-debugfs.h>
 #include <soc/qcom/qcom-spmi-pmic.h>
 
@@ -167,14 +168,31 @@ out_unlock:
 static int pmic_spmi_load_revid(struct regmap *map, struct device *dev,
 				 struct qcom_spmi_pmic *pmic)
 {
-	int ret;
+	int ret, retries = 3;
 
-	ret = regmap_read(map, PMIC_TYPE, &pmic->type);
-	if (ret < 0)
-		return ret;
+	/*
+	 * Retry reading PMIC_TYPE with delays: some PMIC slaves
+	 * (e.g. camera flash PM8010N) may be powered off during
+	 * recovery boot and need time to become responsive after
+	 * their power rail or chip-enable GPIO is asserted.
+	 * Give them up to 30ms total before giving up.
+	 */
+	do {
+		ret = regmap_read(map, PMIC_TYPE, &pmic->type);
+		if (ret != -EIO)
+			break;
+		msleep(10);
+	} while (--retries);
 
-	if (pmic->type != PMIC_TYPE_VALUE)
+	if (ret < 0) {
+		dev_warn(dev, "PMIC_TYPE read failed, slave may be unpowered\n");
 		return ret;
+	}
+
+	if (pmic->type != PMIC_TYPE_VALUE) {
+		dev_warn(dev, "Unknown PMIC type 0x%02x\n", pmic->type);
+		return ret;
+	}
 
 	ret = regmap_read(map, PMIC_SUBTYPE, &pmic->subtype);
 	if (ret < 0)
@@ -286,10 +304,27 @@ static int pmic_spmi_probe(struct spmi_device *sdev)
 	/* Only the first slave id for a PMIC contains this information */
 	if (sdev->usid % ctx->num_usids == 0) {
 		ret = pmic_spmi_load_revid(regmap, &sdev->dev, &ctx->pmic);
+		if (ret == -EIO) {
+			/*
+			 * PMIC slave is unpowered (e.g. flash LED PM8010N
+			 * in recovery). Register the base device but skip
+			 * populating child devices — they will fail anyway.
+			 */
+			dev_warn(&sdev->dev,
+				"PMIC not responding, skipping child devices\n");
+			goto skip_children;
+		}
 		if (ret < 0)
 			return ret;
 	} else {
 		ret = pmic_spmi_get_base_revid(sdev, ctx);
+		if (ret == -EPROBE_DEFER) {
+			/*
+			 * Base PMIC not ready yet. Defer so kernel
+			 * can retry after dependencies are met.
+			 */
+			return ret;
+		}
 		if (ret)
 			return ret;
 	}
@@ -299,6 +334,12 @@ static int pmic_spmi_probe(struct spmi_device *sdev)
 	mutex_unlock(&pmic_spmi_revid_lock);
 
 	return devm_of_platform_populate(&sdev->dev);
+
+skip_children:
+	mutex_lock(&pmic_spmi_revid_lock);
+	spmi_device_set_drvdata(sdev, ctx);
+	mutex_unlock(&pmic_spmi_revid_lock);
+	return 0;
 }
 
 static void pmic_spmi_remove(struct spmi_device *sdev)

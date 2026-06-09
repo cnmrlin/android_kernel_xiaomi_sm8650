@@ -1,9 +1,10 @@
-# SPDX-License-Identifier: GPL-2.0
 VERSION = 6
 PATCHLEVEL = 1
 SUBLEVEL = 152
-EXTRAVERSION =
+EXTRAVERSION = -android14-11
 NAME = Curry Ramen
+
+export BUILD_NUMBER = 14529422
 
 # *DOCUMENTATION*
 # To see a list of typical targets execute "make help"

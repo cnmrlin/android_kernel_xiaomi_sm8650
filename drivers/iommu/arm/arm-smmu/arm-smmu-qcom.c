@@ -2977,8 +2977,14 @@ static int qsmmuv500_tbu_register(struct device *dev, void *cookie)
 	int i, err, num_irqs = 0;
 
 	if (!dev->driver) {
-		dev_err(dev, "TBU failed probe, QSMMUV500 cannot continue!\n");
-		return -EINVAL;
+		/*
+		 * TBU probe may still be deferred waiting for
+		 * interconnect providers or clock/regulator dependencies.
+		 * Skip it instead of blocking the entire SMMU — TBUs
+		 * are optional for basic DMA translation functionality.
+		 */
+		dev_warn(dev, "TBU not probed yet, skipping\n");
+		return 0;
 	}
 
 	tbu = dev_get_drvdata(dev);

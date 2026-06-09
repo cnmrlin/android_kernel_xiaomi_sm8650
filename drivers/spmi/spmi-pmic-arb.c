@@ -303,12 +303,20 @@ static int pmic_arb_wait_for_done(struct spmi_controller *ctrl,
 				return -EPERM;
 			}
 
-			if (status & PMIC_ARB_STATUS_FAILURE) {
-				dev_err(&ctrl->dev, "%s: %#x %#x: transaction failed (%#x)\n",
-					__func__, sid, addr, status);
-				WARN_ON(1);
-				return -EIO;
-			}
+		if (status & PMIC_ARB_STATUS_FAILURE) {
+			dev_err(&ctrl->dev, "%s: %#x %#x: transaction failed (%#x)\n",
+				__func__, sid, addr, status);
+			/*
+			 * Downgrade from WARN_ON to rate-limited warning:
+			 * PMIC slaves may be temporarily unpowered (e.g. pm8010n
+			 * flash LED PMIC in recovery mode). The caller should
+			 * retry or handle the failure gracefully.
+			 */
+			dev_warn_ratelimited(&ctrl->dev,
+				"%s: slave %#x may be unpowered or not ready\n",
+				__func__, sid);
+			return -EIO;
+		}
 
 			if (status & PMIC_ARB_STATUS_DROPPED) {
 				dev_err(&ctrl->dev, "%s: %#x %#x: transaction dropped (%#x)\n",
