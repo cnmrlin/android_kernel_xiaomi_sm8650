@@ -1,6 +1,7 @@
+# SPDX-License-Identifier: GPL-2.0
 VERSION = 6
 PATCHLEVEL = 1
-SUBLEVEL = 152
+SUBLEVEL = 176
 EXTRAVERSION = -android14-11
 NAME = Curry Ramen
 
@@ -1232,7 +1233,6 @@ ext-mod-dirs := \
  	$(ext-mod-dir)/qcom/opensource/display-drivers \
  	$(ext-mod-dir)/qcom/opensource/mm-sys-kernel/ubwcp \
  	$(ext-mod-dir)/qcom/opensource/securemsm-kernel/smmu-proxy \
- 	$(ext-mod-dir)/qcom/opensource/video-kernel \
  	$(ext-mod-dir)/nxp/opensource/driver
 ext-mod-dirs := $(subst $(srctree)/,,$(ext-mod-dirs))
 
@@ -1270,6 +1270,7 @@ endif
 
 # ---------------------------------------------------------------------------
 # Devicetree files
+ifndef CONFIG_ARCH_MXR
 ifeq ($(KBUILD_EXTMOD),)
 ifneq ($(wildcard $(srctree)/arch/$(SRCARCH)/boot/dts/),)
 dtstree := arch/$(SRCARCH)/boot/dts
@@ -1322,6 +1323,7 @@ PHONY += dt_binding_check
 dt_binding_check: scripts_dtc
 	$(Q)$(MAKE) $(build)=Documentation/devicetree/bindings
 
+endif
 
 ifeq ($(KBUILD_EXTMOD),)
 
